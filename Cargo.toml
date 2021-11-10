@@ -1,0 +1,33 @@
+[package]
+name = "shorai"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+image = "0.23.14"
+indexmap = "1.7.0"
+itertools = "0.10.1"
+keyed_priority_queue = "0.4.1"
+num-traits = "0.2.14"
+ordered-float = "2.8.0"
+palette = "0.6.0"
+pathfinding = "2.2.2"
+rand = "0.8.4"
+rayon = "1.5.1"
+rustc-hash = "1.1.0"
+structopt = "0.3.25"
+ultraviolet = "0.8.1"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "my_benchmark"
+harness = false
+
+[features]
+
+[profile.release]
+debug = true
+# lto = true
+# opt-level = 3
