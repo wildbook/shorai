@@ -9,6 +9,7 @@ pub struct Missile {
     pub origin: Vec2,
     pub target: Vec2,
 
+    pub radius: f32,
     pub radius_sq: f32,
 
     pub time_beg: f32, // Timestamp at missile start
@@ -21,12 +22,19 @@ impl Missile {
     pub fn new(spawn_time: f32, origin: Vec2, target: Vec2, radius: f32, speed: f32) -> Missile {
         let offset = target - origin;
         let distance = offset.mag();
-        let radius_sq = radius * radius;
 
         let time_moving = distance / speed;
         let time_offset = offset / time_moving;
 
-        Missile { origin, target, radius_sq, time_offset, time_beg: spawn_time, time_end: spawn_time + time_moving }
+        Missile {
+            origin,
+            target,
+            radius,
+            radius_sq: radius.powi(2),
+            time_offset,
+            time_beg: spawn_time,
+            time_end: spawn_time + time_moving,
+        }
     }
 
     #[inline]
@@ -59,7 +67,7 @@ impl Missile {
 
     pub fn overlaps(&self, smear_from: f32, pos: Pos, pawn_size: f32) -> bool {
         self.get_pos_range(smear_from..pos.time()).map_or(false, |(beg, end)| {
-            let radius_sq = (self.radius_sq.sqrt() - pawn_size).powi(2);
+            let radius_sq = (self.radius - pawn_size).powi(2);
             Line(beg.vec(), end.vec()).dist_to_point_sq(pos.vec()) < radius_sq
         })
     }
