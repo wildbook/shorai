@@ -10,13 +10,10 @@ impl Line {
         let w = self.1;
         let p = point;
 
-        // i.e. |w-v|^2 -  avoid a sqrt
-        let l2 = (w - v).mag_sq();
+        let d = w - v;
 
-        // v == w case
-        if l2 == 0.0 {
-            return (v - p).mag_sq();
-        }
+        // i.e. |w-v|^2 -  avoid a sqrt
+        let l2 = d.mag_sq();
 
         // Consider the line extending the segment, parameterized as v + t (w - v).
         // We find projection of point p onto the line.
@@ -27,7 +24,23 @@ impl Line {
         let t = t.max(0.0).min(1.0);
 
         // Projection falls on the segment
-        let pos = v + (t * (w - v));
+        let pos = v + (t * d);
         (pos - p).mag_sq()
     }
+}
+
+#[test]
+fn dist_to_point_sq_is_valid() {
+    let line = Line(Vec2::new(0.0, 0.0), Vec2::new(1.0, 0.0));
+    let point = Vec2::new(0.5, 1.0);
+
+    assert_eq!(line.dist_to_point_sq(point).sqrt(), 1.0);
+}
+
+#[test]
+fn dist_to_point_sq_with_zero_mag_line_is_valid() {
+    let line = Line(Vec2::new(0.0, 0.0), Vec2::new(0.0, 0.0));
+    let point = Vec2::new(1.0, 0.0);
+
+    assert_eq!(line.dist_to_point_sq(point).sqrt(), 1.0);
 }
