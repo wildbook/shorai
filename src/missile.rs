@@ -58,7 +58,7 @@ impl Missile {
     }
 
     pub fn overlaps(&self, smear_from: f32, pos: Pos, pawn_size: f32) -> bool {
-        self.get_pos_range(smear_from..pos.t.0).map_or(false, |(beg, end)| {
+        self.get_pos_range(smear_from..pos.time()).map_or(false, |(beg, end)| {
             let radius_sq = (self.radius_sq.sqrt() - pawn_size).powi(2);
             Line(beg.vec(), end.vec()).dist_to_point_sq(pos.vec()) < radius_sq
         })

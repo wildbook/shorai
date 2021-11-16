@@ -3,33 +3,21 @@ use ultraviolet::Vec2;
 
 use crate::{math::absdiff, missile::MissileSet, Cost};
 
-#[derive(Copy, Clone, Eq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Pos {
-    // Position
     pub x: OrderedFloat<f32>,
     pub y: OrderedFloat<f32>,
-
-    // Tick
     pub t: OrderedFloat<f32>,
 }
 
-impl std::hash::Hash for Pos {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.x.hash(state);
-        self.y.hash(state);
-        self.t.hash(state);
-    }
-}
-
-impl PartialEq for Pos {
-    fn eq(&self, other: &Self) -> bool {
-        self.x == other.x && self.y == other.y && self.t == other.t
-    }
-}
-
 impl std::fmt::Debug for Pos {
+    #[rustfmt::skip]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Pos").field("x", &self.x.0).field("y", &self.y.0).field("t", &self.t.0).finish()
+        f.debug_struct("Pos")
+            .field("x", &self.x.0)
+            .field("y", &self.y.0)
+            .field("t", &self.t.0)
+            .finish()
     }
 }
 
