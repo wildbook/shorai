@@ -1,8 +1,7 @@
 use ordered_float::OrderedFloat;
-use pathfinding::prelude::absdiff;
 use ultraviolet::Vec2;
 
-use crate::{missile::MissileSet, Cost};
+use crate::{math::absdiff, missile::MissileSet, Cost};
 
 #[derive(Copy, Clone, Eq)]
 pub struct Pos {

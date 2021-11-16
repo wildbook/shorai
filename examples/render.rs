@@ -25,9 +25,6 @@ struct Args {
     #[structopt(long)]
     missiles: u32,
 
-    #[structopt(long)]
-    render: bool,
-
     #[structopt(long, default_value = "0.4")]
     render_scale: f32,
 
@@ -120,11 +117,7 @@ fn main() {
     println!("search took {:?} - score: {}, steps: {}/{}, seconds: {}/{}", elapsed, score, steps, max_steps, time, max_time - curr_time);
 
     match result {
-        Some((path, _cost)) => {
-            if args.render {
-                render_path(render_smear, render_scale, &mis, &path, move_speed, pawn_size, render_step)
-            }
-        }
+        Some((path, _cost)) => render_path(render_smear, render_scale, &mis, &path, move_speed, pawn_size, render_step),
         None => println!("No path found!"),
     }
 }

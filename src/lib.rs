@@ -1,4 +1,3 @@
-mod common;
 mod math;
 
 pub mod geometry;

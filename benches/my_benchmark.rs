@@ -19,7 +19,6 @@ fn generic_path_benchmark(c: &mut Criterion) {
     let missile_count = 100;
 
     let max_time = 20.0;
-    let max_steps = 50000u32;
 
     let origin = Pos::new(0.0, 0.0, curr_time);
     let target = Pos::new(1000.0, 1000.0, max_time);
@@ -44,22 +43,16 @@ fn generic_path_benchmark(c: &mut Criterion) {
 
     let mis = MissileSet(missiles);
 
-    let mut steps = max_steps;
     c.bench_function("find_path", |b| {
         b.iter(|| {
             pathfind::find(
                 origin,
                 |pos| pos.successors(&mis, step_time, step_size),
-                // LoS checks are actually "can I get hit by a missile on the way here" checks for us, so they're pretty expensive
                 |beg, end| mis.collides::<false>(beg, end, move_speed).is_none(),
                 |beg, end| (beg.dist(end) / step_size).into(),
-                // If a jump is taken we need to fix up the time in the cell we jump to by recalculating when we'll be there
                 |beg, end| end.t = beg.t + beg.dist(end) / move_speed,
                 |pos| pos.manhattan_distance(&target),
-                |pos| {
-                    steps -= 1;
-                    steps == 0 || pos.is_same_pos(&target, step_size) || max_time <= pos.time()
-                },
+                |pos| pos.is_same_pos(&target, step_size) || max_time <= pos.time(),
             )
         });
     });
