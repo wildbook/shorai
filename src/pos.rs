@@ -72,6 +72,8 @@ impl Pos {
         step_time: f32,
         // The amount of grid "cells" moved in a single movement
         step_size: f32,
+        // Size of the pawn, used for collision checking
+        pawn_size: f32,
     ) -> impl IntoIterator<Item = (Pos, Cost)> + 'a {
         const DIR: f32 = 1.0;
         const DIA: f32 = std::f32::consts::SQRT_2;
@@ -96,7 +98,7 @@ impl Pos {
 
         // Filter out moves that would put us in a missile
         let smear_from = self.time();
-        opts.into_iter().filter(move |&(pos, _)| missiles.overlaps(smear_from, pos, 0.0).is_none())
+        opts.into_iter().filter(move |&(pos, _)| missiles.overlaps(smear_from, pos, pawn_size).is_none())
     }
 
     pub fn dist_sqr(&self, other: &Pos) -> f32 {

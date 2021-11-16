@@ -67,12 +67,12 @@ impl Missile {
 
     pub fn overlaps(&self, smear_from: f32, pos: Pos, pawn_size: f32) -> bool {
         self.get_pos_range(smear_from..pos.time()).map_or(false, |(beg, end)| {
-            let radius_sq = (self.radius - pawn_size).powi(2);
+            let radius_sq = (self.radius + pawn_size).powi(2);
             Line(beg.vec(), end.vec()).dist_to_point_sq(pos.vec()) < radius_sq
         })
     }
 
-    pub fn collides(&self, pos: Pos, pos_velocity: Vec2, time: Range<f32>) -> bool {
+    pub fn collides(&self, pos: Pos, pos_velocity: Vec2, time: Range<f32>, pawn_size: f32) -> bool {
         // Slice off the ends to only keep the overlapping part
         let t_beg = self.time_beg.max(time.start).max(pos.time());
         let t_end = self.time_end.min(time.end);
@@ -92,7 +92,8 @@ impl Missile {
 
         let t_dlt = t_end - t_beg;
 
-        solve_collision_time(target_pos_beg, target_mis_beg, pos_velocity, self.time_offset, self.radius_sq)
+        let radius_sq = (self.radius + pawn_size).powi(2);
+        solve_collision_time(target_pos_beg, target_mis_beg, pos_velocity, self.time_offset, radius_sq)
             .map_or(false, |t| t <= t_dlt)
     }
 
@@ -122,7 +123,13 @@ impl MissileSet {
 
     /// If `TRUST_END_TIME` is set to `true`, `end.time()` will be used.
     /// Otherwise it will be recalculated from the supplied movement speed.
-    pub fn collides<const TRUST_END_TIME: bool>(&self, pos_beg: &Pos, pos_end: &Pos, move_speed: f32) -> Option<u32> {
+    pub fn collides<const TRUST_END_TIME: bool>(
+        &self,
+        pos_beg: &Pos,
+        pos_end: &Pos,
+        move_speed: f32,
+        pawn_size: f32,
+    ) -> Option<u32> {
         let pos_delta = pos_end.vec() - pos_beg.vec();
         let pos_velocity = pos_delta.normalized() * move_speed;
 
@@ -132,7 +139,10 @@ impl MissileSet {
             false => time_beg + pos_delta.mag() / move_speed,
         };
 
-        self.0.iter().find(|(_, missile)| missile.collides(*pos_beg, pos_velocity, time_beg..time_end)).map(|(&i, _)| i)
+        self.0
+            .iter()
+            .find(|(_, missile)| missile.collides(*pos_beg, pos_velocity, time_beg..time_end, pawn_size))
+            .map(|(&i, _)| i)
     }
 }
 
@@ -159,12 +169,12 @@ fn missile_collides_basic() {
     let pos_v = Vec2::new(-10.0, 0.0);
 
     // Collides within valid time ranges
-    assert!(missile.collides(pos, pos_v, 0.0..10.0));
-    assert!(missile.collides(pos, pos_v, 8.0..12.0));
+    assert!(missile.collides(pos, pos_v, 0.0..10.0, 0.0));
+    assert!(missile.collides(pos, pos_v, 8.0..12.0, 0.0));
 
     // Does not collide outside of valid time ranges
-    assert!(!missile.collides(pos, pos_v, 00.0..8.0));
-    assert!(!missile.collides(pos, pos_v, 12.0..20.0));
+    assert!(!missile.collides(pos, pos_v, 00.0..8.0, 0.0));
+    assert!(!missile.collides(pos, pos_v, 12.0..20.0, 0.0));
 }
 
 #[test]
@@ -177,12 +187,12 @@ fn missile_collides_with_same_spawn_time() {
     let pos_v = Vec2::new(-10.0, 0.0);
 
     // Collides within valid time ranges
-    assert!(missile.collides(pos, pos_v, spawn_time + 0.0..spawn_time + 10.0));
-    assert!(missile.collides(pos, pos_v, spawn_time + 8.0..spawn_time + 12.0));
+    assert!(missile.collides(pos, pos_v, spawn_time + 0.0..spawn_time + 10.0, 0.0));
+    assert!(missile.collides(pos, pos_v, spawn_time + 8.0..spawn_time + 12.0, 0.0));
 
     // Does not collide outside of valid time ranges
-    assert!(!missile.collides(pos, pos_v, spawn_time + 00.0..spawn_time + 8.0));
-    assert!(!missile.collides(pos, pos_v, spawn_time + 12.0..spawn_time + 20.0));
+    assert!(!missile.collides(pos, pos_v, spawn_time + 00.0..spawn_time + 8.0, 0.0));
+    assert!(!missile.collides(pos, pos_v, spawn_time + 12.0..spawn_time + 20.0, 0.0));
 }
 
 #[test]
@@ -193,12 +203,12 @@ fn missile_collides_with_missile_spawn_time() {
     let pos_v = Vec2::new(-10.0, 0.0);
 
     // Collides within valid time ranges
-    assert!(missile.collides(pos, pos_v, 10.0..20.0));
-    assert!(missile.collides(pos, pos_v, 18.0..22.0));
+    assert!(missile.collides(pos, pos_v, 10.0..20.0, 0.0));
+    assert!(missile.collides(pos, pos_v, 18.0..22.0, 0.0));
 
     // Does not collide outside of valid time ranges
-    assert!(!missile.collides(pos, pos_v, 10.0..18.0));
-    assert!(!missile.collides(pos, pos_v, 22.0..30.0));
+    assert!(!missile.collides(pos, pos_v, 10.0..18.0, 0.0));
+    assert!(!missile.collides(pos, pos_v, 22.0..30.0, 0.0));
 }
 
 #[test]
@@ -209,12 +219,12 @@ fn missile_collides_with_pos_spawn_time() {
     let pos_v = Vec2::new(-10.0, 0.0);
 
     // Collides within valid time ranges
-    assert!(missile.collides(pos, pos_v, 10.0..20.0));
-    assert!(missile.collides(pos, pos_v, 18.0..22.0));
+    assert!(missile.collides(pos, pos_v, 10.0..20.0, 0.0));
+    assert!(missile.collides(pos, pos_v, 18.0..22.0, 0.0));
 
     // Does not collide outside of valid time ranges
-    assert!(!missile.collides(pos, pos_v, 10.0..18.0));
-    assert!(!missile.collides(pos, pos_v, 22.0..30.0));
+    assert!(!missile.collides(pos, pos_v, 10.0..18.0, 0.0));
+    assert!(!missile.collides(pos, pos_v, 22.0..30.0, 0.0));
 }
 
 #[test]
@@ -225,10 +235,10 @@ fn missile_collides_with_different_spawn_time() {
     let pos_v = Vec2::new(-10.0, 0.0);
 
     // Collides within valid time ranges
-    assert!(missile.collides(pos, pos_v, 30.0..40.0));
-    assert!(missile.collides(pos, pos_v, 38.0..42.0));
+    assert!(missile.collides(pos, pos_v, 30.0..40.0, 0.0));
+    assert!(missile.collides(pos, pos_v, 38.0..42.0, 0.0));
 
     // Does not collide outside of valid time ranges
-    assert!(!missile.collides(pos, pos_v, 30.0..38.0));
-    assert!(!missile.collides(pos, pos_v, 42.0..50.0));
+    assert!(!missile.collides(pos, pos_v, 30.0..38.0, 0.0));
+    assert!(!missile.collides(pos, pos_v, 42.0..50.0, 0.0));
 }

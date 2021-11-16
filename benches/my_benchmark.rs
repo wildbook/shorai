@@ -33,7 +33,7 @@ fn generic_path_benchmark(c: &mut Criterion) {
             rand,
             -100.0..target.x(),
             -100.0..target.y(),
-            60.0 + pawn_size..120.0 + pawn_size,
+            60.0..120.0,
             300.0..1000.0,
             curr_time..max_time,
         );
@@ -47,8 +47,8 @@ fn generic_path_benchmark(c: &mut Criterion) {
         b.iter(|| {
             pathfind::find(
                 origin,
-                |pos| pos.successors(&mis, step_time, step_size),
-                |beg, end| mis.collides::<false>(beg, end, move_speed).is_none(),
+                |pos| pos.successors(&mis, step_time, step_size, pawn_size),
+                |beg, end| mis.collides::<false>(beg, end, move_speed, pawn_size).is_none(),
                 |beg, end| (beg.dist(end) / step_size).into(),
                 |beg, end| end.t = beg.t + beg.dist(end) / move_speed,
                 |pos| pos.manhattan_distance(&target),

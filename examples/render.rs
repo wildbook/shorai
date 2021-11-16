@@ -72,14 +72,8 @@ fn main() {
 
     let mut missiles = FxIndexMap::default();
     for i in 0..args.missiles {
-        let missile = Missile::random(
-            rand,
-            -100.0..SIZE.x(),
-            -100.0..SIZE.y(),
-            60.0 + pawn_size..120.0 + pawn_size,
-            300.0..1000.0,
-            curr_time..max_time,
-        );
+        let missile =
+            Missile::random(rand, -100.0..SIZE.x(), -100.0..SIZE.y(), 60.0..120.0, 300.0..1000.0, curr_time..max_time);
 
         missiles.insert(i, missile);
     }
@@ -93,9 +87,9 @@ fn main() {
 
     let result = pathfind::find(
         origin,
-        |pos| pos.successors(&mis, step_time, step_size),
+        |pos| pos.successors(&mis, step_time, step_size, pawn_size),
         // LoS checks are actually "can I get hit by a missile on the way here" checks for us, so they're pretty expensive
-        |beg, end| mis.collides::<false>(beg, end, move_speed).is_none(),
+        |beg, end| mis.collides::<false>(beg, end, move_speed, pawn_size).is_none(),
         |beg, end| (beg.dist(end) / step_size).into(),
         // If a jump is taken we need to fix up the time in the cell we jump to by recalculating when we'll be there
         |beg, end| end.t = beg.t + end.dist(beg) / move_speed,
@@ -200,7 +194,7 @@ fn render_path(smear: f32, scale: f32, mis: &MissileSet, path: &[Pos], move_spee
                 let pixel = Pos { x: x.into(), y: y.into(), t: t_end.into() };
 
                 // Draw missiles
-                if let Some(i) = mis.overlaps(t_beg, pixel, pawn_size) {
+                if let Some(i) = mis.overlaps(t_beg, pixel, 0.0) {
                     let col: Lch = Srgb::<u8>::new(0, 0, 255).into_format::<f32>().into_linear().into_color();
 
                     let col = col.shift_hue(i as f32 * 50.0);
@@ -231,8 +225,8 @@ fn render_path(smear: f32, scale: f32, mis: &MissileSet, path: &[Pos], move_spee
                             let beg = Pos::from_vec(line.0, max_beg);
                             let end = Pos::from_vec(line.1, min_end);
 
-                            let collides = mis.collides::<true>(&beg, &end, move_speed).is_some();
-                            let overlaps = mis.overlaps(t_beg, pixel, pawn_size).is_some();
+                            let collides = mis.collides::<true>(&beg, &end, move_speed, 0.0).is_some();
+                            let overlaps = mis.overlaps(t_beg, pixel, 0.0).is_some();
 
                             let color = match (collides, overlaps) {
                                 (true, true) => Rgba([255, 100, 100, 200]),
