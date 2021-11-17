@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use ultraviolet::Vec2;
 
-use crate::{geometry::Line, math::solve_collision_time, pos::Pos, FxIndexMap};
+use crate::{geometry::Line, math::collides_within_time, pos::Pos, FxIndexMap};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Missile {
@@ -67,8 +67,7 @@ impl Missile {
 
     pub fn overlaps(&self, smear_from: f32, pos: Pos, pawn_size: f32) -> bool {
         self.get_pos_range(smear_from..pos.time()).map_or(false, |(beg, end)| {
-            let radius_sq = (self.radius + pawn_size).powi(2);
-            Line(beg.vec(), end.vec()).dist_to_point_sq(pos.vec()) < radius_sq
+            Line(beg.vec(), end.vec()).dist_to_point_sq(pos.vec()) < (self.radius + pawn_size).powi(2)
         })
     }
 
@@ -93,8 +92,7 @@ impl Missile {
         let t_dlt = t_end - t_beg;
 
         let radius_sq = (self.radius + pawn_size).powi(2);
-        solve_collision_time(target_pos_beg, target_mis_beg, pos_velocity, self.time_offset, radius_sq)
-            .map_or(false, |t| t <= t_dlt)
+        collides_within_time(target_pos_beg, target_mis_beg, pos_velocity, self.time_offset, radius_sq, t_dlt)
     }
 
     #[cfg(feature = "rand")]
@@ -144,21 +142,6 @@ impl MissileSet {
             .find(|(_, missile)| missile.collides(*pos_beg, pos_velocity, time_beg..time_end, pawn_size))
             .map(|(&i, _)| i)
     }
-}
-
-#[test]
-fn predict_collision_time_is_correct() {
-    let lhs = Vec2::new(-100.0, 0.0);
-    let rhs = Vec2::new(100.0, 0.0);
-
-    let v_lhs = Vec2::new(10.0, 0.0);
-    let v_rhs = Vec2::new(-10.0, 0.0);
-
-    let radius_sq = 10.0_f32.powi(2);
-
-    let time = solve_collision_time(lhs, rhs, v_lhs, v_rhs, radius_sq);
-
-    assert_eq!(time, Some(9.5));
 }
 
 #[test]

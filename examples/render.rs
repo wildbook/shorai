@@ -63,7 +63,7 @@ fn main() {
     let seed = args.seed.unwrap_or_else(rand::random);
 
     println!("seed: {}", seed);
-    let rand = &mut StdRng::seed_from_u64(seed);
+    let random = &mut StdRng::seed_from_u64(seed);
 
     let step_time = step_size / move_speed;
 
@@ -72,8 +72,14 @@ fn main() {
 
     let mut missiles = FxIndexMap::default();
     for i in 0..args.missiles {
-        let missile =
-            Missile::random(rand, -100.0..SIZE.x(), -100.0..SIZE.y(), 60.0..120.0, 300.0..1000.0, curr_time..max_time);
+        let missile = Missile::random(
+            random,
+            -100.0..SIZE.x(),
+            -100.0..SIZE.y(),
+            60.0..120.0,
+            300.0..1000.0,
+            curr_time..max_time,
+        );
 
         missiles.insert(i, missile);
     }

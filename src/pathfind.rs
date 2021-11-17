@@ -31,40 +31,14 @@ where
     let mut pending = BinaryHeap::new();
     let mut visited = FxIndexMap::default();
 
-    // Used below to register available nodes as they're discovered.
-    let mut add_pending = |visited: &mut _, pending: &mut _, n_parent_idx, cost, node, fallback| {
-        let visited: &mut FxIndexMap<N, (usize, C)> = visited;
-        let pending: &mut BinaryHeap<Pending<C, N>> = pending;
-
-        // We can't merge the below code into one branch since `VacantEntry` and `OccupiedEntry`
-        // are different types with no common trait for interacting with them.
-        let (heuristic_value, index) = match visited.entry(node) {
-            Vacant(entry) => {
-                let out = (heuristic(entry.key()), entry.index());
-                entry.insert((n_parent_idx, cost));
-                out
-            }
-            Occupied(mut entry) if cost < entry.get().1 => {
-                let out = (heuristic(entry.key()), entry.index());
-                entry.insert((n_parent_idx, cost));
-                out
-            }
-
-            // If the entry is occupied with a lower cost (or same-cost) alternative we'll just
-            // keep that one.
-            Occupied(_) => return,
-        };
-
-        pending.push(Pending { estimated_cost: cost + heuristic_value, cost, index, fallback });
-    };
-
     // Add the start node to the visited map, and a reference to it in the pending heap.
     visited.insert(start, (usize::max_value(), Zero::zero()));
     pending.push(Pending { estimated_cost: Zero::zero(), cost: Zero::zero(), index: 0, fallback: None });
 
     // pX = parent X - p0 = current node, p1 = parent of p0, p2 = parent of p1, etc.
     while let Some(Pending { cost, index: p0_index, fallback, .. }) = pending.pop() {
-        let (p0_node, &(p1_index, p0_cost)) = visited.get_index(p0_index).unwrap();
+        // This isn't strictly required to be unchecked, but it helps quite a bit with performance.
+        let (p0_node, &(p1_index, p0_cost)) = unsafe { visited.get_index(p0_index).unwrap_unchecked() };
 
         // We may have inserted a node several time into the binary heap if we found a better way
         // to access it since. If that's the case and the existing node is better than the current
@@ -88,7 +62,7 @@ where
                 // better if it can be taken we can defer it until now and avoid pushing more nodes
                 // than necessary to the pending heap.
                 if let Some(fb) = fallback {
-                    add_pending(&mut visited, &mut pending, fb.parent, fb.cost, fb.node, None);
+                    add_pending(&mut visited, &mut pending, &mut heuristic, fb.parent, fb.cost, fb.node, None);
                 }
 
                 // Since the move wasn't valid we're done with this iteration.
@@ -116,33 +90,62 @@ where
         // Since our current node isn't the goal, we expand it by retrieving and registering all
         // nodes that we can get to from it.
         for (mut node, move_cost) in successors(p0_node) {
-            match visited.get_index(p1_index) {
-                // If the parent has a parent, assume we can jump from that directly to this node
-                // and set up a fallback for if we can't.
-                Some((p1_node, &(_, p1_cost))) => {
-                    // Create a fallback node so we can expand into an equivalent of the second
-                    // branch in this match if this jump ends up being considered and is invalid.
-                    let fallback = Fallback { parent: p0_index, cost: cost + move_cost, node };
+            // If our p0 is the starting node there's no p1 to jump from, so we default to a
+            // pending normal move from the starting node to the successor.
+            let (mut idx, mut cost, mut fallback) = (p0_index, cost + move_cost, None);
 
-                    // We'll want to fix up the time in next_node.
-                    take_jump(p1_node, &mut node);
+            if let Some((p1_node, &(_, p1_cost))) = visited.get_index(p1_index) {
+                // Create a fallback node so we can expand into an equivalent of the second
+                // branch in this match if this jump ends up being considered and is invalid.
+                let backup = Fallback { parent: p0_index, cost: cost + move_cost, node };
 
-                    // Calculate the actual cost of moving to there.
-                    let move_cost = movement_cost(p1_node, &node);
+                // We'll want to fix up the time in next_node.
+                take_jump(p1_node, &mut node);
 
-                    // Use p1 as parent and skip over the p0 node entirely.
-                    add_pending(&mut visited, &mut pending, p1_index, p1_cost + move_cost, node, Some(fallback))
-                }
+                // Calculate the actual cost of moving to there.
+                let move_cost = movement_cost(p1_node, &node);
 
-                // If our p0 is the starting node there's no p1 to jump from, so we just add a
-                // pending normal move from the starting node to the successor.
-                _ => add_pending(&mut visited, &mut pending, p0_index, cost + move_cost, node, None),
-            };
+                // Use p1 as parent and skip over the p0 node entirely.
+                idx = p1_index;
+                cost = p1_cost + move_cost;
+                fallback = Some(backup);
+            }
+
+            add_pending(&mut visited, &mut pending, &mut heuristic, idx, cost, node, fallback);
         }
     }
 
     // We only end up here if there's no more elements to pop and explore.
     None
+}
+
+fn add_pending<N: Eq + Hash + Copy, C: Zero + Ord + Copy>(
+    visited: &mut FxIndexMap<N, (usize, C)>,
+    pending: &mut BinaryHeap<Pending<C, N>>,
+    mut heuristic: impl FnMut(&N) -> C,
+    n_parent_idx: usize,
+    cost: C,
+    node: N,
+    fallback: Option<Fallback<C, N>>,
+) {
+    let (heuristic_value, index) = match visited.entry(node) {
+        Vacant(entry) => {
+            let out = (heuristic(entry.key()), entry.index());
+            entry.insert((n_parent_idx, cost));
+            out
+        }
+        Occupied(mut entry) if cost < entry.get().1 => {
+            let out = (heuristic(entry.key()), entry.index());
+            entry.insert((n_parent_idx, cost));
+            out
+        }
+
+        // If the entry is occupied with a lower cost (or same-cost) alternative we'll just
+        // keep that one.
+        Occupied(_) => return,
+    };
+
+    pending.push(Pending { estimated_cost: cost + heuristic_value, cost, index, fallback });
 }
 
 struct Pending<K, N> {

@@ -102,9 +102,9 @@ impl Pos {
     }
 
     pub fn dist_sqr(&self, other: &Pos) -> f32 {
-        let dx = self.x - other.x;
-        let dy = self.y - other.y;
-        (dx * dx + dy * dy).0
+        let dx = (self.x - other.x).powi(2);
+        let dy = (self.y - other.y).powi(2);
+        dx + dy
     }
 
     pub fn dist(&self, other: &Pos) -> f32 {

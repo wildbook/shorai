@@ -6,10 +6,13 @@ pub struct Line(pub Vec2, pub Vec2);
 impl Line {
     #[inline]
     pub fn dist_to_point_sq(&self, point: Vec2) -> f32 {
+        // https://stackoverflow.com/a/1501725/6713695
+
         let v = self.0;
         let w = self.1;
         let p = point;
 
+        // Get the delta, since we'll be using it more than once
         let d = w - v;
 
         // i.e. |w-v|^2 -  avoid a sqrt
@@ -18,14 +21,15 @@ impl Line {
         // Consider the line extending the segment, parameterized as v + t (w - v).
         // We find projection of point p onto the line.
         // It falls where t = [(p-v) . (w-v)] / |w-v|^2
-        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        let t = (p - v).dot(d) / l2;
 
         // We clamp t from [0,1] to handle points outside the segment vw.
         let t = t.max(0.0).min(1.0);
 
         // Projection falls on the segment
-        let pos = v + (t * d);
-        (pos - p).mag_sq()
+        let proj = v + (t * d);
+
+        (proj - p).mag_sq()
     }
 }
 
