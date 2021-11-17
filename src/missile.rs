@@ -6,19 +6,18 @@ use crate::{geometry::Line, math::collides_within_time, pos::Pos, FxIndexMap};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Missile {
-    pub origin: Vec2,
-    pub target: Vec2,
+    pub time_beg: f32,
+    pub time_end: f32,
 
     pub radius: f32,
-    pub radius_sq: f32,
-
-    pub time_beg: f32, // Timestamp at missile start
-    pub time_end: f32, // Timestamp at missile end
+    pub origin: Vec2,
+    pub target: Vec2,
 
     pub time_offset: Vec2,
 }
 
 impl Missile {
+    #[must_use]
     pub fn new(spawn_time: f32, origin: Vec2, target: Vec2, radius: f32, speed: f32) -> Missile {
         let offset = target - origin;
         let distance = offset.mag();
@@ -26,18 +25,10 @@ impl Missile {
         let time_moving = distance / speed;
         let time_offset = offset / time_moving;
 
-        Missile {
-            origin,
-            target,
-            radius,
-            radius_sq: radius.powi(2),
-            time_offset,
-            time_beg: spawn_time,
-            time_end: spawn_time + time_moving,
-        }
+        Missile { origin, target, radius, time_offset, time_beg: spawn_time, time_end: spawn_time + time_moving }
     }
 
-    #[inline]
+    #[must_use]
     pub fn get_pos_range(&self, time: Range<f32>) -> Option<(Pos, Pos)> {
         let is_alive = self.time_beg <= time.end && time.start <= self.time_end;
 
@@ -65,12 +56,14 @@ impl Missile {
         })
     }
 
+    #[must_use]
     pub fn overlaps(&self, smear_from: f32, pos: Pos, pawn_size: f32) -> bool {
         self.get_pos_range(smear_from..pos.time()).map_or(false, |(beg, end)| {
             Line(beg.vec(), end.vec()).dist_to_point_sq(pos.vec()) < (self.radius + pawn_size).powi(2)
         })
     }
 
+    #[must_use]
     pub fn collides(&self, pos: Pos, pos_velocity: Vec2, time: Range<f32>, pawn_size: f32) -> bool {
         // Slice off the ends to only keep the overlapping part
         let t_beg = self.time_beg.max(time.start).max(pos.time());
@@ -115,12 +108,14 @@ impl Missile {
 pub struct MissileSet(pub FxIndexMap<u32, Missile>);
 
 impl MissileSet {
+    #[must_use]
     pub fn overlaps(&self, smear_from: f32, pos: Pos, pawn_size: f32) -> Option<u32> {
         self.0.iter().find(|(_, missile)| missile.overlaps(smear_from, pos, pawn_size)).map(|(&i, _)| i)
     }
 
     /// If `TRUST_END_TIME` is set to `true`, `end.time()` will be used.
     /// Otherwise it will be recalculated from the supplied movement speed.
+    #[must_use]
     pub fn collides<const TRUST_END_TIME: bool>(
         &self,
         pos_beg: &Pos,
@@ -132,10 +127,7 @@ impl MissileSet {
         let pos_velocity = pos_delta.normalized() * move_speed;
 
         let time_beg = pos_beg.time();
-        let time_end = match TRUST_END_TIME {
-            true => pos_end.time(),
-            false => time_beg + pos_delta.mag() / move_speed,
-        };
+        let time_end = if TRUST_END_TIME { pos_end.time() } else { time_beg + pos_delta.mag() / move_speed };
 
         self.0
             .iter()

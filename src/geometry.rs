@@ -4,7 +4,7 @@ use ultraviolet::Vec2;
 pub struct Line(pub Vec2, pub Vec2);
 
 impl Line {
-    #[inline]
+    #[must_use]
     pub fn dist_to_point_sq(&self, point: Vec2) -> f32 {
         // https://stackoverflow.com/a/1501725/6713695
 

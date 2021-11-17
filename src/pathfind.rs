@@ -38,6 +38,7 @@ where
     // pX = parent X - p0 = current node, p1 = parent of p0, p2 = parent of p1, etc.
     while let Some(Pending { cost, index: p0_index, fallback, .. }) = pending.pop() {
         // This isn't strictly required to be unchecked, but it helps quite a bit with performance.
+        // We're never going to be holding an invalid index since we never remove elements from the visited list.
         let (p0_node, &(p1_index, p0_cost)) = unsafe { visited.get_index(p0_index).unwrap_unchecked() };
 
         // We may have inserted a node several time into the binary heap if we found a better way

@@ -22,48 +22,62 @@ impl std::fmt::Debug for Pos {
 }
 
 impl Pos {
+    #[must_use]
     #[inline(always)]
     pub const fn new(x: f32, y: f32, t: f32) -> Pos {
         Pos { x: OrderedFloat(x), y: OrderedFloat(y), t: OrderedFloat(t) }
     }
 
+    #[must_use]
     #[inline(always)]
     pub const fn from_vec(v: Vec2, t: f32) -> Pos {
         Pos::new(v.x, v.y, t)
     }
 
+    #[must_use]
     #[inline(always)]
     pub const fn time(&self) -> f32 {
         self.t.0
     }
 
+    #[must_use]
     #[inline(always)]
     pub const fn x(&self) -> f32 {
         self.x.0
     }
 
+    #[must_use]
     #[inline(always)]
     pub const fn y(&self) -> f32 {
         self.y.0
     }
 
+    #[must_use]
     #[inline(always)]
     pub const fn vec(&self) -> Vec2 {
         Vec2::new(self.x(), self.y())
     }
 
+    #[must_use]
+    #[inline(always)]
     pub fn next(&self, diff_x: f32, diff_y: f32, diff_t: f32) -> Pos {
         Pos { x: self.x + diff_x, y: self.y + diff_y, t: self.t + diff_t }
     }
 
+    #[must_use]
+    #[inline(always)]
     pub fn is_same_pos(&self, other: &Pos, step_size: f32) -> bool {
         (self.x - other.x).abs() < step_size && (self.y - other.y).abs() < step_size
     }
 
+    #[must_use]
+    #[inline(always)]
     pub fn manhattan_distance(&self, other: &Pos) -> Cost {
         Cost::from(absdiff(self.x(), other.x()) + absdiff(self.y(), other.y()))
     }
 
+    #[must_use]
+    #[inline]
     pub fn successors<'a>(
         &self,
         // All missiles that are currently active / relevant
@@ -101,12 +115,16 @@ impl Pos {
         opts.into_iter().filter(move |&(pos, _)| missiles.overlaps(smear_from, pos, pawn_size).is_none())
     }
 
+    #[must_use]
+    #[inline(always)]
     pub fn dist_sqr(&self, other: &Pos) -> f32 {
         let dx = (self.x - other.x).powi(2);
         let dy = (self.y - other.y).powi(2);
         dx + dy
     }
 
+    #[must_use]
+    #[inline(always)]
     pub fn dist(&self, other: &Pos) -> f32 {
         self.dist_sqr(other).sqrt()
     }
