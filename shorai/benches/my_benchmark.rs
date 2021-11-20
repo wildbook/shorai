@@ -48,7 +48,7 @@ fn generic_path_benchmark(c: &mut Criterion) {
             pathfind::find(
                 origin,
                 |pos| pos.successors(&mis, step_time, step_size, pawn_size),
-                |beg, end| mis.collides::<false>(beg, end, move_speed, pawn_size).is_none(),
+                |beg, end| mis.collides(beg, end, move_speed, pawn_size).is_none(),
                 |beg, end| (beg.dist(end) / step_size).into(),
                 |beg, end| end.t = beg.t + beg.dist(end) / move_speed,
                 |pos| pos.manhattan_distance(&target),

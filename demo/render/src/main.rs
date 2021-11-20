@@ -95,7 +95,7 @@ fn main() {
         origin,
         |pos| pos.successors(&mis, step_time, step_size, pawn_size),
         // LoS checks are actually "can I get hit by a missile on the way here" checks for us, so they're pretty expensive
-        |beg, end| mis.collides::<false>(beg, end, move_speed, pawn_size).is_none(),
+        |beg, end| mis.collides(beg, end, move_speed, pawn_size).is_none(),
         |beg, end| (beg.dist(end) / step_size).into(),
         // If a jump is taken we need to fix up the time in the cell we jump to by recalculating when we'll be there
         |beg, end| end.t = beg.t + end.dist(beg) / move_speed,
@@ -231,7 +231,7 @@ fn render_path(smear: f32, scale: f32, mis: &MissileSet, path: &[Pos], move_spee
                             let beg = Pos::from_vec(line.0, max_beg);
                             let end = Pos::from_vec(line.1, min_end);
 
-                            let collides = mis.collides::<true>(&beg, &end, move_speed, 0.0).is_some();
+                            let collides = mis.collides(&beg, &end, move_speed, 0.0).is_some();
                             let overlaps = mis.overlaps(t_beg, pixel, 0.0).is_some();
 
                             let color = match (collides, overlaps) {

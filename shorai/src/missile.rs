@@ -113,21 +113,13 @@ impl MissileSet {
         self.0.iter().find(|(_, missile)| missile.overlaps(smear_from, pos, pawn_size)).map(|(&i, _)| i)
     }
 
-    /// If `TRUST_END_TIME` is set to `true`, `end.time()` will be used.
-    /// Otherwise it will be recalculated from the supplied movement speed.
     #[must_use]
-    pub fn collides<const TRUST_END_TIME: bool>(
-        &self,
-        pos_beg: &Pos,
-        pos_end: &Pos,
-        move_speed: f32,
-        pawn_size: f32,
-    ) -> Option<u32> {
+    pub fn collides(&self, pos_beg: &Pos, pos_end: &Pos, move_speed: f32, pawn_size: f32) -> Option<u32> {
         let pos_delta = pos_end.vec() - pos_beg.vec();
         let pos_velocity = pos_delta.normalized() * move_speed;
 
         let time_beg = pos_beg.time();
-        let time_end = if TRUST_END_TIME { pos_end.time() } else { time_beg + pos_delta.mag() / move_speed };
+        let time_end = pos_end.time();
 
         self.0
             .iter()
