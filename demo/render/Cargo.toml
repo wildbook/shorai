@@ -1,0 +1,13 @@
+[package]
+name = "render"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+shorai = { path = "../../shorai", features = ["rand"] }
+palette = "0.6.0"
+structopt = "0.3.25"
+image = "0.23.14"
+rayon = "1.5.1"
+rand = "0.8.4"
+ultraviolet = "0.8.1"

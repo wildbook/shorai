@@ -12,14 +12,7 @@ ultraviolet = "0.8.1"
 rand = { version = "0.8.4", optional = true }
 
 [dev-dependencies]
-# Benchmarking
 criterion = "0.3"
-
-# Example: render.rs
-palette = "0.6.0"
-rayon = "1.5.1"
-structopt = "0.3.25"
-image = "0.23.14"
 
 [[bench]]
 name = "my_benchmark"
