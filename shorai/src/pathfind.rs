@@ -10,6 +10,10 @@ use std::iter;
 
 use crate::FxIndexMap;
 
+// TODO: Offer a wrapper that short tries a plain move to a goal first, avoiding pathing entirely
+// if the goal is reachable? This would save us a decent amount of time in the case where there's
+// no obstacles in the way.
+
 pub fn find<N, C, IN>(
     start: N,
     mut successors: impl FnMut(&N) -> IN,
@@ -17,10 +21,25 @@ pub fn find<N, C, IN>(
     // Used to dynamially calculate cost for arbitrary jumps.
     // It is important that uses the same calculation as `successors` does.
     mut movement_cost: impl FnMut(&N, &N) -> C,
-    // Called when a jump is taken, allows making modifications to `N` before cost is calculated.
-    mut take_jump: impl FnMut(&N, &mut N),
     mut heuristic: impl FnMut(&N) -> C,
     mut success: impl FnMut(&N) -> bool,
+
+    // Called when a jump is taken and allows making modifications to the jumped-to `N`.
+    //
+    // Returning `None` instead of `Some` also allows filtering out invalid jumps early.
+    // Note that whether or not the jump is valid collision-wise is handled by `is_valid_move`, and
+    // handling it here instead will be very costly. Instead, this function is intended to allow
+    // filtering out cases where A -> B -> C is not allowed to be simplified down to A -> C for one
+    // reason or another. If you're unsure what to pass here, just pass `|_, _, _| None`.
+    //
+    // The arguments are, in order:
+    //  - The node we're considering jumping from
+    //  - The node we're considering skipping over
+    //  - The node we're considering jumping to
+    //
+    // The return value is the node we're considering jumping to, but with potential changes
+    // such as a recalculated cost.
+    mut jump_check: impl FnMut(&N, &N, &N) -> Option<N>,
 ) -> Option<(Vec<N>, C)>
 where
     N: Eq + Hash + Copy,
@@ -96,20 +115,23 @@ where
             let (mut idx, mut cost, mut fallback) = (p0_index, cost + move_cost, None);
 
             if let Some((p1_node, &(_, p1_cost))) = visited.get_index(p1_index) {
-                // Create a fallback node so we can expand into an equivalent of the second
-                // branch in this match if this jump ends up being considered and is invalid.
-                let backup = Fallback { parent: p0_index, cost: cost + move_cost, node };
+                // We need to re-grab p0 here since we borrowed `visited` above.
+                let (p0_node, _) = unsafe { visited.get_index(p0_index).unwrap_unchecked() };
 
-                // We'll want to fix up the time in next_node.
-                take_jump(p1_node, &mut node);
+                if let Some(jump_node) = jump_check(p1_node, p0_node, &node) {
+                    // Create a fallback node so we can expand into an equivalent of the second
+                    // branch in this match if this jump ends up being considered and is invalid.
+                    let backup = Fallback { parent: p0_index, cost: cost + move_cost, node };
 
-                // Calculate the actual cost of moving to there.
-                let move_cost = movement_cost(p1_node, &node);
+                    // Calculate the actual cost of moving to there.
+                    let move_cost = movement_cost(p1_node, &jump_node);
 
-                // Use p1 as parent and skip over the p0 node entirely.
-                idx = p1_index;
-                cost = p1_cost + move_cost;
-                fallback = Some(backup);
+                    // Use p1 as parent and skip over the p0 node entirely.
+                    idx = p1_index;
+                    cost = p1_cost + move_cost;
+                    node = jump_node;
+                    fallback = Some(backup);
+                }
             }
 
             add_pending(&mut visited, &mut pending, &mut heuristic, idx, cost, node, fallback);
@@ -141,8 +163,8 @@ fn add_pending<N: Eq + Hash + Copy, C: Zero + Ord + Copy>(
             out
         }
 
-        // If the entry is occupied with a lower cost (or same-cost) alternative we'll just
-        // keep that one.
+        // If the entry is occupied with a lower cost (or same-cost) alternative we'll just keep
+        // that one.
         Occupied(_) => return,
     };
 

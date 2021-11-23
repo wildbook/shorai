@@ -47,12 +47,16 @@ fn generic_path_benchmark(c: &mut Criterion) {
         b.iter(|| {
             pathfind::find(
                 origin,
-                |pos| pos.successors(&mis, step_time, step_size, pawn_size),
-                |beg, end| mis.collides(beg, end, move_speed, pawn_size).is_none(),
+                |pos| pos.successors(step_time, step_size),
+                |beg, end| mis.collides_points(beg, end, move_speed, pawn_size).is_none(),
                 |beg, end| (beg.dist(end) / step_size).into(),
-                |beg, end| end.t = beg.t + beg.dist(end) / move_speed,
-                |pos| pos.manhattan_distance(&target),
+                |pos| pos.dist_sq(&target).into(),
                 |pos| pos.is_same_pos(&target, step_size) || max_time <= pos.time(),
+                |beg, _, &end| {
+                    let mut end = end;
+                    end.t = beg.t + beg.dist(&end) / move_speed;
+                    Some(end)
+                },
             )
         });
     });

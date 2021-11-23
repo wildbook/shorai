@@ -109,23 +109,60 @@ pub struct MissileSet(pub FxIndexMap<u32, Missile>);
 
 impl MissileSet {
     #[must_use]
-    pub fn overlaps(&self, smear_from: f32, pos: Pos, pawn_size: f32) -> Option<u32> {
-        self.0.iter().find(|(_, missile)| missile.overlaps(smear_from, pos, pawn_size)).map(|(&i, _)| i)
+    pub fn overlaps(&self, smear_from: f32, pos: &Pos, pawn_size: f32) -> Option<u32> {
+        self.0.iter().find(|(_, missile)| missile.overlaps(smear_from, *pos, pawn_size)).map(|(&i, _)| i)
     }
 
     #[must_use]
-    pub fn collides(&self, pos_beg: &Pos, pos_end: &Pos, move_speed: f32, pawn_size: f32) -> Option<u32> {
-        let pos_delta = pos_end.vec() - pos_beg.vec();
-        let pos_velocity = pos_delta.normalized() * move_speed;
-
-        let time_beg = pos_beg.time();
-        let time_end = pos_end.time();
-
+    pub fn collides_velocity(&self, pos: &Pos, velocity: Vec2, end_time: f32, pawn_size: f32) -> Option<u32> {
         self.0
             .iter()
-            .find(|(_, missile)| missile.collides(*pos_beg, pos_velocity, time_beg..time_end, pawn_size))
+            .find(|(_, missile)| missile.collides(*pos, velocity, pos.time()..end_time, pawn_size))
             .map(|(&i, _)| i)
     }
+
+    #[must_use]
+    pub fn collides_points(&self, pos_beg: &Pos, pos_end: &Pos, move_speed: f32, pawn_size: f32) -> Option<u32> {
+        let velocity = pos_beg.direction(pos_end) * move_speed;
+
+        let dist = (pos_end.vec() - pos_beg.vec()).mag();
+        let move_time = dist / move_speed;
+
+        let move_beg_time = pos_beg.time();
+        let move_end_time = move_beg_time + move_time;
+
+        self.collides_velocity(pos_beg, velocity, move_end_time, pawn_size)
+            .or_else(|| self.overlaps(move_end_time, pos_end, pawn_size))
+    }
+}
+
+#[test]
+fn missile_overlaps() {
+    let missile = Missile::new(0.0, Vec2::new(-50.0, 0.0), Vec2::new(50.0, 0.0), 1.0, 10.0);
+
+    // Collides within valid time ranges
+    assert!(missile.overlaps(4.8, Pos::new(0.0, 0.0, 5.2), 0.0));
+
+    // Does not collide outside of valid time ranges
+    assert!(!missile.overlaps(4.8, Pos::new(0.0, 0.0, 4.9), 0.0));
+    assert!(!missile.overlaps(5.1, Pos::new(0.0, 0.0, 5.2), 0.0));
+}
+
+#[test]
+fn missile_collides_or_overlaps() {
+    let mut missiles = MissileSet(FxIndexMap::default());
+    missiles.0.insert(0, Missile::new(0.0, Vec2::new(-50.0, 0.0), Vec2::new(50.0, 0.0), 1.0, 10.0));
+
+    let source = Pos::new(0.0, -10.0, 5.0);
+
+    let move_speed = 100.0;
+
+    // Does not collide outside of valid time ranges
+    let target = Pos::new(0.0, 0.0, 10.0);
+    assert!(missiles.collides_points(&source, &target, move_speed, 0.0).is_some());
+
+    let target = Pos::new(0.0, 0.0, 10.0);
+    assert!(missiles.collides_points(&source, &target, move_speed, 0.0).is_some());
 }
 
 #[test]
@@ -208,4 +245,19 @@ fn missile_collides_with_different_spawn_time() {
     // Does not collide outside of valid time ranges
     assert!(!missile.collides(pos, pos_v, 30.0..38.0, 0.0));
     assert!(!missile.collides(pos, pos_v, 42.0..50.0, 0.0));
+}
+
+#[test]
+fn missile_collides_with_static_object() {
+    let missile = Missile::new(0.0, Vec2::new(-300.0, 0.0), Vec2::new(0.0, 0.0), 1.0, 10.0);
+
+    let pos = Pos::new(0.0, 0.0, 0.0);
+    let pos_v = Vec2::new(0.0, 0.0);
+
+    // Collides within valid time ranges
+    assert!(missile.collides(pos, pos_v, 30.0..31.0, 0.0));
+
+    // Does not collide outside of valid time ranges
+    assert!(!missile.collides(pos, pos_v, 28.0..29.0, 0.0));
+    assert!(!missile.collides(pos, pos_v, 31.0..32.0, 0.0));
 }
