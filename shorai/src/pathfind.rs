@@ -1,5 +1,42 @@
-// This implementation was originally based on [the `pathfinding` crate](https://crates.io/crates/pathfinding).
-// It was heavily modified to fit the needs of this project.
+//! This implementation was originally based on [the `pathfinding` crate](https://crates.io/crates/pathfinding)'s A*.
+//! It was *heavily* modified to fit the needs of this project.
+//!
+//! Function arguments:
+//! ===================
+//!
+//! - `start`:
+//!    - The start position of the path.
+//! - `initialize`:
+//!    - A function that returns an iterator over the initial nodes of the path.
+//! - `successors`:
+//!    - A function that returns an iterator over the successors of a node.
+//! - `is_valid_move`:
+//!   - A function that returns `true` if a move between two points is valid.
+//! - `movement_cost`:
+//!   - A function that returns the cost of moving from one point to another.  
+//!     Only used to dynamially calculate cost for arbitrary jumps. As such, it is important that
+//!     it uses the same calculation as `successors` (and `initialize`) does.
+//! - `heuristic`:
+//!   - Called to determine how close to the goal a node is. This doesn't have to be a distance, but
+//!     it should be a valid metric for the given problem.
+//! - `success`:
+//!   - Called to determine if a node is considered a valid goal.
+//! - `jump_check`:
+//!   - Called when a jump is taken and allows making modifications to the jumped-to `N`.
+//!   
+//!     Returning `None` instead of `Some` also allows filtering out invalid jumps early.
+//!     Note that whether or not the jump is valid collision-wise is handled by `is_valid_move`, and
+//!     handling it here instead will be very costly. Instead, this function is intended to allow
+//!     filtering out cases where A -> B -> C is not allowed to be simplified down to A -> C for one
+//!     reason or another. If you're unsure what to pass here, just pass `|_, _, _| None`.
+//!     
+//!     The return value is the node we're considering jumping to, but with potential changes
+//!     such as a recalculated cost.
+//!
+//!     The arguments are, in order:
+//!      - The node we're considering jumping from.
+//!      - The node we're considering skipping over.
+//!      - The node we're considering jumping to.
 
 use indexmap::map::Entry::{Occupied, Vacant};
 use num_traits::Zero;
@@ -14,46 +51,105 @@ use crate::FxIndexMap;
 // if the goal is reachable? This would save us a decent amount of time in the case where there's
 // no obstacles in the way.
 
-pub fn find<N, C, IN>(
+/// This is solely a convenience function.
+pub fn find_with_optional_init<N, C, IterSuccessors>(
     start: N,
-    mut successors: impl FnMut(&N) -> IN,
-    mut is_valid_move: impl FnMut(&N, &N) -> bool,
-    // Used to dynamially calculate cost for arbitrary jumps.
-    // It is important that uses the same calculation as `successors` does.
-    mut movement_cost: impl FnMut(&N, &N) -> C,
-    mut heuristic: impl FnMut(&N) -> C,
-    mut success: impl FnMut(&N) -> bool,
-
-    // Called when a jump is taken and allows making modifications to the jumped-to `N`.
-    //
-    // Returning `None` instead of `Some` also allows filtering out invalid jumps early.
-    // Note that whether or not the jump is valid collision-wise is handled by `is_valid_move`, and
-    // handling it here instead will be very costly. Instead, this function is intended to allow
-    // filtering out cases where A -> B -> C is not allowed to be simplified down to A -> C for one
-    // reason or another. If you're unsure what to pass here, just pass `|_, _, _| None`.
-    //
-    // The arguments are, in order:
-    //  - The node we're considering jumping from
-    //  - The node we're considering skipping over
-    //  - The node we're considering jumping to
-    //
-    // The return value is the node we're considering jumping to, but with potential changes
-    // such as a recalculated cost.
-    mut jump_check: impl FnMut(&N, &N, &N) -> Option<N>,
+    initialize: Option<impl IntoIterator<Item = (N, C)>>,
+    successors: impl FnMut(&N) -> IterSuccessors,
+    is_valid_move: impl FnMut(&N, &N) -> bool,
+    movement_cost: impl FnMut(&N, &N) -> C,
+    heuristic: impl FnMut(&N) -> C,
+    success: impl FnMut(&N) -> bool,
+    jump_check: impl FnMut(&N, &N, &N) -> Option<N>,
 ) -> Option<(Vec<N>, C)>
 where
     N: Eq + Hash + Copy,
     C: Zero + Ord + Copy,
-    IN: IntoIterator<Item = (N, C)>,
+    IterSuccessors: IntoIterator<Item = (N, C)>,
+{
+    // TODO: Split the init "trampolines" to separate functions so that this can easier inline?
+
+    if let Some(initialize) = initialize {
+        find_with_init(start, initialize, successors, is_valid_move, movement_cost, heuristic, success, jump_check)
+    } else {
+        find(start, successors, is_valid_move, movement_cost, heuristic, success, jump_check)
+    }
+}
+
+pub fn find_with_init<N, C, IterSuccessors>(
+    start: N,
+    initialize: impl IntoIterator<Item = (N, C)>,
+    successors: impl FnMut(&N) -> IterSuccessors,
+    mut is_valid_move: impl FnMut(&N, &N) -> bool,
+    movement_cost: impl FnMut(&N, &N) -> C,
+    mut heuristic: impl FnMut(&N) -> C,
+    success: impl FnMut(&N) -> bool,
+    jump_check: impl FnMut(&N, &N, &N) -> Option<N>,
+) -> Option<(Vec<N>, C)>
+where
+    N: Eq + Hash + Copy,
+    C: Zero + Ord + Copy,
+    IterSuccessors: IntoIterator<Item = (N, C)>,
 {
     // Set up the two main collections we'll be using.
     let mut pending = BinaryHeap::new();
     let mut visited = FxIndexMap::default();
 
+    // Insert the root position as our starting position.
+    let (n_parent_idx, _) = visited.insert_full(start, (usize::MAX, Zero::zero()));
+
+    // Add the start nodes to the visited map, and references to them in the pending heap.
+    for (node, cost) in initialize {
+        // If the node can be moved to, register it as a pending node with the start node as its parent.
+        if is_valid_move(&start, &node) {
+            add_pending(&mut visited, &mut pending, &mut heuristic, n_parent_idx, cost, node, None);
+        }
+    }
+
+    find_inner(pending, visited, successors, is_valid_move, movement_cost, heuristic, success, jump_check)
+}
+
+pub fn find<N, C, IterSuccessors>(
+    start: N,
+    successors: impl FnMut(&N) -> IterSuccessors,
+    is_valid_move: impl FnMut(&N, &N) -> bool,
+    movement_cost: impl FnMut(&N, &N) -> C,
+    heuristic: impl FnMut(&N) -> C,
+    success: impl FnMut(&N) -> bool,
+    jump_check: impl FnMut(&N, &N, &N) -> Option<N>,
+) -> Option<(Vec<N>, C)>
+where
+    N: Eq + Hash + Copy,
+    C: Zero + Ord + Copy,
+    IterSuccessors: IntoIterator<Item = (N, C)>,
+{
+    // Set up the two main collections we'll be using.
+    let mut visited = FxIndexMap::default();
+    let mut pending = BinaryHeap::new();
+
     // Add the start node to the visited map, and a reference to it in the pending heap.
-    visited.insert(start, (usize::max_value(), Zero::zero()));
+    visited.insert(start, (usize::MAX, Zero::zero()));
     pending.push(Pending { estimated_cost: Zero::zero(), cost: Zero::zero(), index: 0, fallback: None });
 
+    find_inner(pending, visited, successors, is_valid_move, movement_cost, heuristic, success, jump_check)
+}
+
+fn find_inner<N, C, IterSuccessors>(
+    mut pending: BinaryHeap<Pending<C, N>>, // All the nodes we've seen but haven't yet validated or expanded.
+    mut visited: FxIndexMap<N, (usize, C)>, // All potentially referenced nodes.
+
+    mut successors: impl FnMut(&N) -> IterSuccessors,
+    mut is_valid_move: impl FnMut(&N, &N) -> bool,
+    mut movement_cost: impl FnMut(&N, &N) -> C,
+    mut heuristic: impl FnMut(&N) -> C,
+    mut success: impl FnMut(&N) -> bool,
+    mut jump_check: impl FnMut(&N, &N, &N) -> Option<N>,
+) -> Option<(Vec<N>, C)>
+where
+    N: Eq + Hash + Copy,
+    C: Zero + Ord + Copy,
+    IterSuccessors: IntoIterator<Item = (N, C)>,
+{
     // pX = parent X - p0 = current node, p1 = parent of p0, p2 = parent of p1, etc.
     while let Some(Pending { cost, index: p0_index, fallback, .. }) = pending.pop() {
         // This isn't strictly required to be unchecked, but it helps quite a bit with performance.
@@ -172,8 +268,11 @@ fn add_pending<N: Eq + Hash + Copy, C: Zero + Ord + Copy>(
 }
 
 struct Pending<K, N> {
+    // Estimated cost to get to the goal.
     estimated_cost: K,
+    // Cost to get to here.
     cost: K,
+    // Index of the node in the visited list.
     index: usize,
 
     // If the pending node is not a valid move, we're going to insert a fallback node into the

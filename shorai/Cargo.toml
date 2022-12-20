@@ -13,6 +13,7 @@ rand = { version = "0.8.4", optional = true }
 
 [dev-dependencies]
 criterion = "0.3"
+rand = "0.8"
 
 [[bench]]
 name = "my_benchmark"

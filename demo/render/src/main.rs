@@ -228,9 +228,6 @@ fn render_path(smear: f32, scale: f32, mis: &MissileSet, path: &[Pos], move_spee
                     let line =
                         Line(from.vec() + dir * (max_beg - from.time()), into.vec() - dir * (into.time() - min_end));
 
-                    // #[rustfmt::skip]
-                    // println!("{:?} -> {:?} ({:?}) - {:?} ({:?} in {:?})", from, into, time, line.dist_to_point_sq(pixel_pos.vec()), pixel_pos.vec(), line);
-
                     // Check if line intersects with pixel
                     if line.dist_to_point_sq(pixel_pos.vec()) <= pawn_size_sq {
                         let beg = Pos::from_vec(line.0, max_beg);
@@ -255,6 +252,6 @@ fn render_path(smear: f32, scale: f32, mis: &MissileSet, path: &[Pos], move_spee
         });
 
         // Save image
-        image.save(format!("out/step_{:03}_{:03}-{:03}.png", i, t_beg, t_end)).unwrap();
+        image.save(format!("out/step_{:03}.png", i)).unwrap();
     });
 }
